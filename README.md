@@ -1,3 +1,4 @@
+[![Board Status](https://dev.azure.com/timsgravemade/1e99d87e-e84e-49f8-bd97-2752707e7af6/d4815894-bde2-4fb5-bfd0-506be7e228f4/_apis/work/boardbadge/0c3493b2-0e5a-478b-ad3d-51bbe2311940)](https://dev.azure.com/timsgravemade/1e99d87e-e84e-49f8-bd97-2752707e7af6/_boards/board/t/d4815894-bde2-4fb5-bfd0-506be7e228f4/Microsoft.RequirementCategory)
 # Relatics Toolkit
 [![Tests](https://github.com/nvvliet-croonwolterendros/relatics-extractor/actions/workflows/test.yml/badge.svg)](https://github.com/nvvliet-croonwolterendros/relatics-extractor/actions/workflows/test.yml)
 
