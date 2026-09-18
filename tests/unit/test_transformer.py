@@ -1,0 +1,103 @@
+import pandas as pd
+import pytest
+
+from relatics_toolkit.processing.transformer import _normalize_value
+
+
+@pytest.mark.parametrize("val", [None, float("nan"), pd.NaT, pd.NA])
+def test_na_like_inputs_return_empty_string(val):
+    assert _normalize_value(val) == ""
+
+
+@pytest.mark.parametrize("val", ["", "!!!", "   ", "🎉"])
+def test_values_that_normalize_to_nothing_return_empty_string(val):
+    assert _normalize_value(val) == ""
+
+@pytest.mark.parametrize(
+    ("val", "expected"),
+    [
+        ("Hello World", "hello_world"),
+        ("Route 66", "route_66"),
+        ("a-b-c", "a_b_c"),
+        ("foo(bar)", "foo_bar"),
+        ("  hello   world  ", "hello_world"),
+    ],
+)
+def test_general_normalization(val, expected):
+    assert _normalize_value(val) == expected
+
+
+@pytest.mark.parametrize(
+    ("val", "expected"),
+    [
+        ("Tom & Jerry", "tom_en_jerry"),
+        ("AT&T", "at_en_t"),
+        ("a+b", "a_plus_b"),
+        ("x=y", "x_is_y"),
+        ("korting 50% ", "korting_50_procent"),
+        ("C#", "c_nr"),
+        ("€5", "euro_5"),           # replacement's leading "_" gets stripped
+        ("$100", "dollar_100"),
+        ("§ 3.1", "paragraaf_3_1"),
+        ("°C", "graden_c"),
+        ("€&$", "euro_en_dollar"),  # adjacent specials don't stack underscores
+    ],
+)
+def test_special_character_replacements(val, expected):
+    assert _normalize_value(val) == expected
+
+@pytest.mark.parametrize(
+    ("val", "expected"),
+    [
+        ("Café", "cafe"),
+        ("naïve", "naive"),
+        ("Ångström", "angstrom"),
+        ("a🎉b", "ab"),  # emoji is *removed*, not turned into "_"
+    ],
+)
+def test_unicode_handling(val, expected):
+    assert _normalize_value(val) == expected
+
+@pytest.mark.parametrize(
+    ("val", "expected"),
+    [
+        ("2024", "no_num_2024"),
+        ("42 answers", "no_num_42_answers"),
+        ("1+1", "no_num_1_plus_1"),
+        ("20°C", "no_num_20_graden_c"),
+        ("route 66", "route_66"),  # non-leading digit: no prefix
+    ],
+)
+def test_leading_digit_gets_no_num_prefix(val, expected):
+    assert _normalize_value(val) == expected
+
+
+def test_default_max_length_is_63():
+    result = _normalize_value("x" * 100)
+    assert result == "x" * 63
+    assert len(result) == 63
+
+
+def test_custom_max_length():
+    assert _normalize_value("abcdefghij", max_length=5) == "abcde"
+
+
+def test_no_num_prefix_counts_towards_max_length():
+    # "no_num_" is 7 chars, so 63 - 7 = 56 digits survive truncation
+    result = _normalize_value("9" * 70)
+    assert result == "no_num_" + "9" * 56
+
+@pytest.mark.parametrize(
+    ("val", "expected"),
+    [
+        (123, "no_num_123"),
+        (12.5, "no_num_12_5"),
+        ("7", "no_num_7"),
+    ],
+)
+def test_non_string_input_is_coerced_via_str(val, expected):
+    assert _normalize_value(val) == expected
+
+def test_real_world_messy_string():
+    val = "H&M — Zomercollectie 2024 (50% korting!)"
+    assert _normalize_value(val) == "h_en_m_zomercollectie_2024_50_procent_korting"
