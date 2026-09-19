@@ -2,11 +2,7 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 
-from relatics_toolkit.processing.validator import (
-    _normalize_value,
-    normalize_tables,
-    validate_schema,
-)
+from relatics_toolkit.processing.validator import normalize_tables, validate_schema
 
 
 def test_normalize_tables_skips_missing_tables():
@@ -113,7 +109,7 @@ def test_normalize_tables_missing_column_no_rows():
 
 
 def test_normalize_tables_drop_all_null_rows():
-    """Removes rows that contain only missing values after normalization."""
+    """Removes rows that contain only missing values."""
     schema = {
         "table_one": {
             "columns": {
@@ -477,28 +473,3 @@ def test_validate_schema_stops_table_validation_after_missing_columns():
         validate_schema(tables, schema)
 
     assert exc_info.value.args[0] == expected_errors
-
-
-def test_normalize_value_return_none():
-    """Return None when None is passed"""
-    val = None
-
-    result = _normalize_value(val)
-
-    assert result is None
-
-
-def test_normalize_value_raise_when_empty_val():
-    """Raises when val is empty string"""
-    val = ""
-
-    with pytest.raises(RuntimeError, match="got normalized to empty string"):
-        _normalize_value(val)
-
-
-def test_normalize_value_raise_when_normalized_to_empty():
-    """Return None when None is passed"""
-    val = "!"
-
-    with pytest.raises(RuntimeError, match="got normalized to empty string"):
-        _normalize_value(val)

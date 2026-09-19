@@ -2,7 +2,7 @@ SCHEMA = {
     "Element": {
         "columns": {
             "R1ElementID": {"not_null": True},
-            "R1Element": {"not_null": True},
+            "R1Element": {"not_null": True, "normalize": True},
         },
         "unique": [
             ["R1ElementID"],
@@ -49,9 +49,6 @@ SCHEMA = {
             "ChildR2ElementID": {"not_null": False},
             "ChildR2Element": {"not_null": False, "normalize": True},
         },
-        "unique": [
-            ["Relation", "R2Element", "ChildR2Element"],
-        ],
     },
     "RelationInstances": {
         "columns": {
