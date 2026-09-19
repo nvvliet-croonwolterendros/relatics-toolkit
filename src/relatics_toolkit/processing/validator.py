@@ -91,9 +91,7 @@ def validate_schema(
             )
 
         for unique_columns in table_schema.get("unique", []):
-            mask = (
-                ~df[unique_columns].isna().any(axis=1) & df[unique_columns].duplicated()
-            )
+            mask = df[unique_columns].duplicated()
 
             if mask.any():
                 errors["duplicate_values"].append(

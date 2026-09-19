@@ -244,7 +244,7 @@ def test_validate_schema_accepts_unique_composite():
     validate_schema(tables, schema)
 
 
-def test_validate_schema_accepts_duplicate_nulls():
+def test_validate_schema_raises_on_duplicate_nulls():
     """Allow duplicate null values in a unique column."""
     schema = {
         "Person": {
@@ -269,10 +269,22 @@ def test_validate_schema_accepts_duplicate_nulls():
         )
     }
 
-    validate_schema(tables, schema)
+    expected_errors = {
+        "duplicate_values": [
+            {
+                "table": "Person",
+                "columns": ["name"],
+            }
+        ]
+    }
+
+    with pytest.raises(RuntimeError) as exc_info:
+        validate_schema(tables, schema)
+
+    assert exc_info.value.args[0] == expected_errors
 
 
-def test_validate_schema_accepts_duplicate_composite_nulls():
+def test_validate_schema_raises_on_duplicate_composite_nulls():
     """Allow duplicate composite keys when all key values are null."""
     schema = {
         "Person": {
@@ -297,7 +309,19 @@ def test_validate_schema_accepts_duplicate_composite_nulls():
         )
     }
 
-    validate_schema(tables, schema)
+    expected_errors = {
+        "duplicate_values": [
+            {
+                "table": "Person",
+                "columns": ["name", "city"],
+            }
+        ]
+    }
+
+    with pytest.raises(RuntimeError) as exc_info:
+        validate_schema(tables, schema)
+
+    assert exc_info.value.args[0] == expected_errors
 
 
 def test_validate_schema_raises_on_duplicate_composite():
