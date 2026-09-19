@@ -8,7 +8,8 @@ from relatics_toolkit.processing.schema import SCHEMA
 
 
 def normalize_tables(
-    tables: dict[str, pd.DataFrame], schema: dict[str, dict[str, dict]] = SCHEMA
+    tables: dict[str, pd.DataFrame],
+    schema: dict[str, dict] = SCHEMA,
 ) -> dict[str, pd.DataFrame]:
     """
     Add columns to tables and normalize values according to the schema.
@@ -19,13 +20,13 @@ def normalize_tables(
 
     normalized_tables: dict[str, pd.DataFrame] = {}
 
-    for table_name, table_schema in schema.items():
+    for table_name, table_rules in schema.items():
         table = tables.get(table_name)
 
         if table is not None:
             df = table.copy()
 
-            for column_name, column_rules in table_schema.items():
+            for column_name, column_rules in table_rules.get("columns", {}).items():
                 if column_name not in df.columns:
                     df[column_name] = column_rules.get("default", None)
                 if column_rules.get("normalize"):
@@ -40,7 +41,7 @@ def normalize_tables(
 
 def validate_schema(
     tables: dict[str, pd.DataFrame],
-    schema: dict[str, dict[str, dict]],
+    schema: dict[str, dict],
 ) -> None:
     """
     Validate tables against the configured schema.
@@ -49,7 +50,7 @@ def validate_schema(
     - Required tables exist.
     - Required columns exist.
     - Columns marked 'not_null' contain no null values.
-    - Columns marked 'unique' contain no duplicate non-null values.
+    - Columns/composites marked as unique contain no duplicates.
     """
     errors = defaultdict(list)
 
@@ -60,8 +61,10 @@ def validate_schema(
 
         df = tables[table_name]
 
+        column_schema = table_schema.get("columns", {})
+
         missing_columns = [
-            column for column in table_schema if column not in df.columns
+            column for column in column_schema if column not in df.columns
         ]
 
         if missing_columns:
@@ -75,7 +78,7 @@ def validate_schema(
 
         null_columns = [
             column
-            for column, column_rules in table_schema.items()
+            for column, column_rules in column_schema.items()
             if column_rules.get("not_null") and df[column].isna().any()
         ]
 
@@ -87,46 +90,29 @@ def validate_schema(
                 }
             )
 
-        duplicate_columns = [
-            column
-            for column, column_rules in table_schema.items()
-            if column_rules.get("unique") and df[column].dropna().duplicated().any()
-        ]
-
-        if duplicate_columns:
-            errors["duplicate_values"].append(
-                {
-                    "table": table_name,
-                    "columns": duplicate_columns,
-                }
+        for unique_columns in table_schema.get("unique", []):
+            mask = (
+                ~df[unique_columns].isna().any(axis=1) & df[unique_columns].duplicated()
             )
 
+            if mask.any():
+                errors["duplicate_values"].append(
+                    {
+                        "table": table_name,
+                        "columns": unique_columns,
+                    }
+                )
+
     if errors:
-        raise RuntimeError(format_validation_errors(errors))
+        raise RuntimeError(errors)
 
 
-def format_validation_errors(errors: dict[str, list[dict]]) -> str:
-    sections = []
-
-    for category, items in errors.items():
-        lines = []
-
-        for item in items:
-            if category == "missing_tables":
-                lines.append(item["table"])
-
-            else:
-                lines.append(f"{item['table']}: {', '.join(item['columns'])}")
-
-        sections.append(f"{category}:\n- " + "\n- ".join(lines))
-
-    return "Schema validation failed.\n\n" + "\n\n".join(sections)
-
-
-def _normalize_value(val: str, max_length: int = 63) -> str | None:
+def _normalize_value(val: str | None, max_length: int = 63) -> str | None:
     """
     Normalize text for use as SQL table and column names.
     """
+    original_val = val
+
     if pd.isna(val) or val is None:
         return None
 
@@ -152,7 +138,7 @@ def _normalize_value(val: str, max_length: int = 63) -> str | None:
     val = val.strip("_")
 
     if not val:
-        return ""
+        raise RuntimeError(f"{original_val} got normalized to empty string")
 
     # Prevent leading digit
     if val[0].isdigit():
