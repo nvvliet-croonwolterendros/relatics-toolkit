@@ -79,11 +79,13 @@ def create_element_tables(
 
     r1_element = element_df[R1ELEMENT_COL][0]
 
-    relations_df, relation_instances_df = _transform_relations_table(
-        relations_df=relations_df, relation_instances_df=relation_instances_df
+    relations_df, relation_instances_df = _prepare_relation_targets(
+        relations_df=relations_df,
+        relation_instances_df=relation_instances_df,
     )
     property_table = _create_property_table(
-        properties_df=properties_df, property_instances_df=property_instances_df
+        properties_df=properties_df,
+        property_instances_df=property_instances_df,
     )
     to_one_relations_table = _create_to_one_relations_table(
         relations_df=relations_df,
@@ -91,13 +93,9 @@ def create_element_tables(
         inline_relations=inline_relations,
     )
 
-    sub_tables: list = [
-        df
-        for df in (
-            property_table,
-            to_one_relations_table,
-        )
-        if not df.columns.empty
+    sub_tables: list[pd.DataFrame | pd.Series] = [
+        property_table,
+        to_one_relations_table,
     ]
 
     element_table = (
@@ -119,11 +117,11 @@ def create_element_tables(
     }
 
 
-def _transform_relations_table(
+def _prepare_relation_targets(
     relations_df: pd.DataFrame, relation_instances_df: pd.DataFrame
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Normalize and disambiguate relation target element names.
+    Disambiguate relation target element names.
 
     - Coalesces child R2 element data into the primary R2 columns.
     - Validates that each Relation/R2Element combination is unique.
@@ -153,25 +151,20 @@ def _transform_relations_table(
             "relations_df cannot contain duplicated Relation + R2Element pairs."
         )
 
-    rename_rows = relations_df.loc[
-        relations_df[R2ELEMENT_COL].duplicated(keep=False)
-        | (relations_df[R1ELEMENT_COL] == relations_df[R2ELEMENT_COL])
-    ].copy()
-
-    rename_rows[R2ELEMENT_COL] = (
-        rename_rows[RELATION_COL] + "_" + rename_rows[R2ELEMENT_COL]
+    rename_ids = set(
+        relations_df.loc[
+            relations_df[R2ELEMENT_COL].duplicated(keep=False)
+            | (relations_df[R1ELEMENT_COL] == relations_df[R2ELEMENT_COL]),
+            RELATIONID_COL,
+        ]
     )
 
-    rename_map = rename_rows.set_index(RELATIONID_COL)[R2ELEMENT_COL].to_dict()
+    for df in (relations_df, relation_instances_df):
+        mask = df[RELATIONID_COL].isin(rename_ids)
 
-    relations_df[R2ELEMENT_COL] = (
-        relations_df[RELATIONID_COL].map(rename_map).fillna(relations_df[R2ELEMENT_COL])
-    )
-    relation_instances_df[R2ELEMENT_COL] = (
-        relation_instances_df[RELATIONID_COL]
-        .map(rename_map)
-        .fillna(relation_instances_df[R2ELEMENT_COL])
-    )
+        df.loc[mask, R2ELEMENT_COL] = (
+            df.loc[mask, RELATION_COL] + "_" + df.loc[mask, R2ELEMENT_COL]
+        )
 
     return relations_df, relation_instances_df
 
@@ -217,7 +210,7 @@ def _create_to_one_relations_table(
     """
     inline_relations = inline_relations or []
     if inline_relations:
-        inline_relations = [normalize_value(value) for value in inline_relations]
+        inline_relations = [str(normalize_value(value)) for value in inline_relations]
 
     all_to_one_relations_df = _filter_cardinality(
         df=relations_df,

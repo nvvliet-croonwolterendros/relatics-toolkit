@@ -4,14 +4,14 @@ import unicodedata
 import pandas as pd
 
 
-def normalize_value(val: str, max_length: int = 63) -> str:
+def normalize_value(val: str | None, max_length: int = 63) -> str | None:
     """
     Normalize text for use as SQL table and column names.
     """
     original_val = val
 
     if pd.isna(val) or val is None:
-        raise RuntimeError("Tried to normalize a None value")
+        return None
 
     val = str(val)
 
