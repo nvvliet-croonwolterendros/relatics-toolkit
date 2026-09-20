@@ -30,7 +30,7 @@ R2INSTANCEID_COL = "R2InstanceID"
 
 DEFAULT_COLUMN_MAP = {
     R1INSTANCEID_COL: "guid",
-    R1INSTANCE_COL: "naam",
+    R1INSTANCE_COL: "name",
     "R1InstanceDescription": "description",
     "R1InstanceRichText": "rich_text",
 }
@@ -112,7 +112,7 @@ def create_element_tables(
     )
 
     return {
-        f"raw_relatics__{r1_element}": element_table,
+        f"{r1_element}": element_table,
         **link_tables,
     }
 
@@ -304,7 +304,7 @@ def _create_link_tables(
     link_tables: dict[str, pd.DataFrame] = {}
 
     for r2_element in to_many_relations_df[R2ELEMENT_COL]:
-        table_name = f"raw_relatics__{r1_element}_{r2_element}"
+        table_name = f"{r1_element}_{r2_element}"
 
         mask = to_many_relation_instances_df[R2ELEMENT_COL] == str(r2_element)
 
