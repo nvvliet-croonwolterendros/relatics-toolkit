@@ -16,7 +16,18 @@ def normalize_value(val: str | None, max_length: int = 63) -> str | None:
     val = str(val)
 
     # Replace special characters
-    val = val.replace("&", "_en_").replace("€", "_euro_").replace("+", "_plus_")
+    special_mapping = str.maketrans({
+        "&": "_and_",
+        "€": "_euro_",
+        "+": "_plus_",
+        "%": "_percent_",
+        "#": "_nr_",
+        "§": "_paragraph_",
+        "$": "_dollar_",
+        "=": "_is_",
+        "°": "_degree_",
+    })
+    val = val.translate(special_mapping)
 
     # Unicode -> ASCII
     val = unicodedata.normalize("NFKD", val)
