@@ -17,15 +17,15 @@ def normalize_value(val: str | None, max_length: int = 63) -> str | None:
 
     # Replace special characters
     special_mapping = str.maketrans({
-        "&": "_en_",
+        "&": "_and_",
         "€": "_euro_",
         "+": "_plus_",
-        "%": "_procent_",
+        "%": "_percent_",
         "#": "_nr_",
-        "§": "_paragraaf_",
+        "§": "_paragraph_",
         "$": "_dollar_",
         "=": "_is_",
-        "°": "_graden_",
+        "°": "_degree_",
     })
     val = val.translate(special_mapping)
 

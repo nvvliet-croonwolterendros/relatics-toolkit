@@ -30,17 +30,17 @@ def test_general_normalization(val, expected):
 @pytest.mark.parametrize(
     ("val", "expected"),
     [
-        ("Tom & Jerry", "tom_en_jerry"),
-        ("AT&T", "at_en_t"),
+        ("Tom & Jerry", "tom_and_jerry"),
+        ("AT&T", "at_and_t"),
         ("a+b", "a_plus_b"),
         ("x=y", "x_is_y"),
-        ("korting 50% ", "korting_50_procent"),
+        ("korting 50% ", "korting_50_percent"),
         ("C#", "c_nr"),
         ("€5", "euro_5"),           # replacement's leading "_" gets stripped
         ("$100", "dollar_100"),
-        ("§ 3.1", "paragraaf_3_1"),
-        ("°C", "graden_c"),
-        ("€&$", "euro_en_dollar"),  # adjacent specials don't stack underscores
+        ("§ 3.1", "paragraph_3_1"),
+        ("°C", "degree_c"),
+        ("€&$", "euro_and_dollar"),  # adjacent specials don't stack underscores
     ],
 )
 def test_special_character_replacements(val, expected):
@@ -64,7 +64,7 @@ def test_unicode_handling(val, expected):
         ("2024", "no_num_2024"),
         ("42 answers", "no_num_42_answers"),
         ("1+1", "no_num_1_plus_1"),
-        ("20°C", "no_num_20_graden_c"),
+        ("20°C", "no_num_20_degree_c"),
         ("route 66", "route_66"),  # non-leading digit: no prefix
     ],
 )
@@ -100,7 +100,7 @@ def test_non_string_input_is_coerced_via_str(val, expected):
 
 def test_real_world_messy_string():
     val = "H&M — Zomercollectie 2024 (50% korting!)"
-    assert normalize_value(val) == "h_en_m_zomercollectie_2024_50_procent_korting"
+    assert normalize_value(val) == "h_and_m_zomercollectie_2024_50_percent_korting"
 
 def testnormalize_value_raise_when_empty_string():
     """Raises when val is empty string"""
