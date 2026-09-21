@@ -3,32 +3,35 @@ from collections import defaultdict
 import pandas as pd
 
 from relatics_toolkit.processing.schema import SCHEMA
+from relatics_toolkit.utils.utils import normalize_value
 
 
 def normalize_tables(
-    tables: dict[str, pd.DataFrame], schema: dict[str, dict[str, dict]] = SCHEMA
+    tables: dict[str, pd.DataFrame],
+    schema: dict[str, dict] = SCHEMA,
 ) -> dict[str, pd.DataFrame]:
     """
-    Add missing optional columns to tables according to the schema.
+    Add columns to tables and normalize values according to the schema.
 
-    Columns marked 'not_null=False' are added when missing and
-    initialized with their configured default value. The resulting
-    tables are validated against the schema before being returned.
+    Columns are added when missing and initialized with their default value
+    if configured, else with None. Then values of columns are normalized if configured.
     """
 
     normalized_tables: dict[str, pd.DataFrame] = {}
 
-    for table_name, table_schema in schema.items():
+    for table_name, table_rules in schema.items():
         table = tables.get(table_name)
 
         if table is not None:
             df = table.copy()
 
-            for column_name, column_rules in table_schema.items():
-                if column_name not in df.columns:
-                    df[column_name] = column_rules.get("default")
-
             df = df.dropna(how="all").reset_index(drop=True)
+
+            for column_name, column_rules in table_rules.get("columns", {}).items():
+                if column_name not in df.columns:
+                    df[column_name] = column_rules.get("default", None)
+                if column_rules.get("normalize"):
+                    df[column_name] = df[column_name].apply(normalize_value)
 
             normalized_tables[table_name] = df
 
@@ -37,7 +40,7 @@ def normalize_tables(
 
 def validate_schema(
     tables: dict[str, pd.DataFrame],
-    schema: dict[str, dict[str, dict]],
+    schema: dict[str, dict],
 ) -> None:
     """
     Validate tables against the configured schema.
@@ -46,7 +49,7 @@ def validate_schema(
     - Required tables exist.
     - Required columns exist.
     - Columns marked 'not_null' contain no null values.
-    - Columns marked 'unique' contain no duplicate non-null values.
+    - Columns/composites marked as unique contain no duplicates.
     """
     errors = defaultdict(list)
 
@@ -57,8 +60,10 @@ def validate_schema(
 
         df = tables[table_name]
 
+        column_schema = table_schema.get("columns", {})
+
         missing_columns = [
-            column for column in table_schema if column not in df.columns
+            column for column in column_schema if column not in df.columns
         ]
 
         if missing_columns:
@@ -72,7 +77,7 @@ def validate_schema(
 
         null_columns = [
             column
-            for column, column_rules in table_schema.items()
+            for column, column_rules in column_schema.items()
             if column_rules.get("not_null") and df[column].isna().any()
         ]
 
@@ -84,37 +89,16 @@ def validate_schema(
                 }
             )
 
-        duplicate_columns = [
-            column
-            for column, column_rules in table_schema.items()
-            if column_rules.get("unique") and df[column].dropna().duplicated().any()
-        ]
+        for unique_columns in table_schema.get("unique", []):
+            mask = df[unique_columns].duplicated()
 
-        if duplicate_columns:
-            errors["duplicate_values"].append(
-                {
-                    "table": table_name,
-                    "columns": duplicate_columns,
-                }
-            )
+            if mask.any():
+                errors["duplicate_values"].append(
+                    {
+                        "table": table_name,
+                        "columns": unique_columns,
+                    }
+                )
 
     if errors:
-        raise RuntimeError(format_validation_errors(errors))
-
-
-def format_validation_errors(errors: dict[str, list[dict]]) -> str:
-    sections = []
-
-    for category, items in errors.items():
-        lines = []
-
-        for item in items:
-            if category == "missing_tables":
-                lines.append(item["table"])
-
-            else:
-                lines.append(f"{item['table']}: {', '.join(item['columns'])}")
-
-        sections.append(f"{category}:\n- " + "\n- ".join(lines))
-
-    return "Schema validation failed.\n\n" + "\n\n".join(sections)
+        raise RuntimeError(errors)

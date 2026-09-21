@@ -1,38 +1,67 @@
 SCHEMA = {
     "Element": {
-        "R1ElementID": {"not_null": True, "unique": True},
-        "R1Element": {"not_null": True, "unique": True},
+        "columns": {
+            "R1ElementID": {"not_null": True},
+            "R1Element": {"not_null": True, "normalize": True},
+        },
+        "unique": [
+            ["R1ElementID"],
+            ["R1Element"],
+        ],
     },
     "ElementInstances": {
-        "R1InstanceID": {"not_null": True, "unique": True},
-        "R1Instance": {"not_null": True, "unique": False},
-        "R1InstanceDescription": {"not_null": False, "unique": False, "default": None},
-        "R1InstanceRichText": {"not_null": False, "unique": False, "default": None},
+        "columns": {
+            "R1InstanceID": {"not_null": True},
+            "R1Instance": {"not_null": True},
+            "R1InstanceDescription": {"not_null": False},
+            "R1InstanceRichText": {"not_null": False},
+        },
+        "unique": [
+            ["R1InstanceID"],
+        ],
     },
     "Properties": {
-        "Property": {"not_null": True, "unique": True},
+        "columns": {
+            "Property": {"not_null": True, "normalize": True},
+        },
+        "unique": [
+            ["Property"],
+        ],
     },
     "PropertyInstances": {
-        "R1InstanceID": {"not_null": True, "unique": False},
-        "Property": {"not_null": True, "unique": False},
-        "PropertyInstance": {"not_null": False, "unique": False},
+        "columns": {
+            "R1InstanceID": {"not_null": True},
+            "Property": {"not_null": True, "normalize": True},
+            "PropertyInstance": {"not_null": False},
+        },
+        "unique": [
+            ["R1InstanceID", "Property"],
+        ],
     },
     "Relations": {
-        "RelationID": {"not_null": True, "unique": False},
-        "Relation": {"not_null": True, "unique": False},
-        "Cardinality": {"not_null": False, "unique": False},
-        "R1Element": {"not_null": True, "unique": False},
-        "R2ElementID": {"not_null": True, "unique": False},
-        "R2Element": {"not_null": True, "unique": False},
-        "ChildR2ElementID": {"not_null": False, "unique": False, "default": None},
-        "ChildR2Element": {"not_null": False, "unique": False, "default": None},
+        "columns": {
+            "RelationID": {"not_null": True},
+            "Relation": {"not_null": True, "normalize": True},
+            "Cardinality": {"not_null": False},
+            "R1Element": {"not_null": True, "normalize": True},
+            "R2ElementID": {"not_null": True},
+            "R2Element": {"not_null": True, "normalize": True},
+            "ChildR2ElementID": {"not_null": False},
+            "ChildR2Element": {"not_null": False, "normalize": True},
+        },
     },
     "RelationInstances": {
-        "RelationID": {"not_null": True, "unique": False},
-        "Cardinality": {"not_null": False, "unique": False},
-        "R1InstanceID": {"not_null": True, "unique": False},
-        "R2Element": {"not_null": True, "unique": False},
-        "R2InstanceID": {"not_null": True, "unique": False},
-        "R2Instance": {"not_null": True, "unique": False},
+        "columns": {
+            "RelationID": {"not_null": True},
+            "Relation": {"not_null": True, "normalize": True},
+            "Cardinality": {"not_null": False},
+            "R1InstanceID": {"not_null": True},
+            "R2Element": {"not_null": True, "normalize": True},
+            "R2InstanceID": {"not_null": True},
+            "R2Instance": {"not_null": True},
+        },
+        "unique": [
+            ["Relation", "R2Element"],
+        ],
     },
 }

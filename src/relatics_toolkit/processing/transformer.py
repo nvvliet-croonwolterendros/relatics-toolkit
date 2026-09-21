@@ -1,9 +1,9 @@
 import logging
-import re
-import unicodedata
 from typing import Literal
 
 import pandas as pd
+
+from relatics_toolkit.processing.validator import normalize_value
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ R2INSTANCEID_COL = "R2InstanceID"
 
 DEFAULT_COLUMN_MAP = {
     R1INSTANCEID_COL: "guid",
-    R1INSTANCE_COL: "naam",
+    R1INSTANCE_COL: "name",
     "R1InstanceDescription": "description",
     "R1InstanceRichText": "rich_text",
 }
@@ -77,13 +77,15 @@ def create_element_tables(
     relations_df = tables["Relations"].copy()
     relation_instances_df = tables["RelationInstances"].copy()
 
-    r1_element = _normalize_value(element_df[R1ELEMENT_COL][0])
+    r1_element = element_df[R1ELEMENT_COL][0]
 
-    relations_df, relation_instances_df = _transform_relations_table(
-        relations_df=relations_df, relation_instances_df=relation_instances_df
+    relations_df, relation_instances_df = _prepare_relation_targets(
+        relations_df=relations_df,
+        relation_instances_df=relation_instances_df,
     )
     property_table = _create_property_table(
-        properties_df=properties_df, property_instances_df=property_instances_df
+        properties_df=properties_df,
+        property_instances_df=property_instances_df,
     )
     to_one_relations_table = _create_to_one_relations_table(
         relations_df=relations_df,
@@ -91,13 +93,9 @@ def create_element_tables(
         inline_relations=inline_relations,
     )
 
-    sub_tables: list = [
-        df
-        for df in (
-            property_table,
-            to_one_relations_table,
-        )
-        if not df.columns.empty
+    sub_tables: list[pd.DataFrame | pd.Series] = [
+        property_table,
+        to_one_relations_table,
     ]
 
     element_table = (
@@ -114,48 +112,34 @@ def create_element_tables(
     )
 
     return {
-        f"raw_relatics__{r1_element}": element_table,
+        f"{r1_element}": element_table,
         **link_tables,
     }
 
 
-def _transform_relations_table(
+def _prepare_relation_targets(
     relations_df: pd.DataFrame, relation_instances_df: pd.DataFrame
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Normalize and disambiguate relation target element names.
+    Disambiguate relation target element names.
 
     - Coalesces child R2 element data into the primary R2 columns.
-    - Normalizes element and relation names.
     - Validates that each Relation/R2Element combination is unique.
     - Renames duplicate and self-referencing R2Elements to ensure unique
         SQL-safe column names.
     - Applies the same renaming to relation instances.
     """
-    if (
-        CHILDR2ELEMENT_COL in relations_df.columns
-        and CHILDR2ELEMENTID_COL in relations_df.columns
-    ):
-        relations_df[R2ELEMENT_COL] = (
-            relations_df[CHILDR2ELEMENT_COL]
-            .replace("", None)
-            .combine_first(relations_df[R2ELEMENT_COL])
-        )
-        relations_df[R2ELEMENTID_COL] = (
-            relations_df[CHILDR2ELEMENTID_COL]
-            .replace("", None)
-            .combine_first(relations_df[R2ELEMENTID_COL])
-        )
-        relations_df = relations_df.drop(
-            [CHILDR2ELEMENT_COL, CHILDR2ELEMENTID_COL], axis=1
-        )
-
-    relations_df[[R1ELEMENT_COL, RELATION_COL, R2ELEMENT_COL]] = relations_df[
-        [R1ELEMENT_COL, RELATION_COL, R2ELEMENT_COL]
-    ].map(_normalize_value)
-    relation_instances_df[R2ELEMENT_COL] = relation_instances_df[R2ELEMENT_COL].apply(
-        _normalize_value
+    relations_df[R2ELEMENT_COL] = (
+        relations_df[CHILDR2ELEMENT_COL]
+        .replace("", None)
+        .combine_first(relations_df[R2ELEMENT_COL])
     )
+    relations_df[R2ELEMENTID_COL] = (
+        relations_df[CHILDR2ELEMENTID_COL]
+        .replace("", None)
+        .combine_first(relations_df[R2ELEMENTID_COL])
+    )
+    relations_df = relations_df.drop([CHILDR2ELEMENT_COL, CHILDR2ELEMENTID_COL], axis=1)
 
     duplicates_mask = relations_df.duplicated(
         subset=[RELATION_COL, R2ELEMENT_COL], keep=False
@@ -167,25 +151,20 @@ def _transform_relations_table(
             "relations_df cannot contain duplicated Relation + R2Element pairs."
         )
 
-    rename_rows = relations_df.loc[
-        relations_df[R2ELEMENT_COL].duplicated(keep=False)
-        | (relations_df[R1ELEMENT_COL] == relations_df[R2ELEMENT_COL])
-    ].copy()
-
-    rename_rows[R2ELEMENT_COL] = (
-        rename_rows[RELATION_COL] + "_" + rename_rows[R2ELEMENT_COL]
+    rename_ids = set(
+        relations_df.loc[
+            relations_df[R2ELEMENT_COL].duplicated(keep=False)
+            | (relations_df[R1ELEMENT_COL] == relations_df[R2ELEMENT_COL]),
+            RELATIONID_COL,
+        ]
     )
 
-    rename_map = rename_rows.set_index(RELATIONID_COL)[R2ELEMENT_COL].to_dict()
+    for df in (relations_df, relation_instances_df):
+        mask = df[RELATIONID_COL].isin(rename_ids)
 
-    relations_df[R2ELEMENT_COL] = (
-        relations_df[RELATIONID_COL].map(rename_map).fillna(relations_df[R2ELEMENT_COL])
-    )
-    relation_instances_df[R2ELEMENT_COL] = (
-        relation_instances_df[RELATIONID_COL]
-        .map(rename_map)
-        .fillna(relation_instances_df[R2ELEMENT_COL])
-    )
+        df.loc[mask, R2ELEMENT_COL] = (
+            df.loc[mask, RELATION_COL] + "_" + df.loc[mask, R2ELEMENT_COL]
+        )
 
     return relations_df, relation_instances_df
 
@@ -196,37 +175,22 @@ def _create_property_table(
     """
     Create a property table indexed by R1 instance.
 
-    Property names are normalized and become columns.
+    Property names are pivoted to columns.
     A column is included for every property defined in properties_df,
     even if no property instances exist.
     """
     property_instances_df = property_instances_df.copy()
+    property_columns = properties_df[PROPERTY_COL].unique().tolist()
 
-    property_columns = (
-        properties_df[PROPERTY_COL].apply(_normalize_value).unique().tolist()
-    )
-
-    property_instances_df[PROPERTY_COL] = property_instances_df[PROPERTY_COL].apply(
-        _normalize_value
-    )
-
-    try:
-        return (
-            property_instances_df.pivot(
-                index=R1INSTANCEID_COL,
-                columns=PROPERTY_COL,
-                values=PROPERTYINSTANCE_COL,
-            )
-            .reindex(columns=property_columns)
-            .rename_axis(columns=None)
+    return (
+        property_instances_df.pivot(
+            index=R1INSTANCEID_COL,
+            columns=PROPERTY_COL,
+            values=PROPERTYINSTANCE_COL,
         )
-
-    except ValueError:
-        logger.exception(
-            "Failed to pivot property instances. "
-            "Normalization may have created duplicate property names."
-        )
-        raise
+        .reindex(columns=property_columns)
+        .rename_axis(columns=None)
+    )
 
 
 def _create_to_one_relations_table(
@@ -246,7 +210,7 @@ def _create_to_one_relations_table(
     """
     inline_relations = inline_relations or []
     if inline_relations:
-        inline_relations = [_normalize_value(value) for value in inline_relations]
+        inline_relations = [str(normalize_value(value)) for value in inline_relations]
 
     all_to_one_relations_df = _filter_cardinality(
         df=relations_df,
@@ -340,7 +304,7 @@ def _create_link_tables(
     link_tables: dict[str, pd.DataFrame] = {}
 
     for r2_element in to_many_relations_df[R2ELEMENT_COL]:
-        table_name = f"raw_relatics__{r1_element}_{r2_element}"
+        table_name = f"{r1_element}_{r2_element}"
 
         mask = to_many_relation_instances_df[R2ELEMENT_COL] == str(r2_element)
 
@@ -379,53 +343,3 @@ def _filter_cardinality(
         return df[cardinality_mask == ":1"]
 
     raise ValueError(f"Invalid cardinality '{cardinality}'. Expected 'one' or 'many'.")
-
-
-def _normalize_value(val: str, max_length: int = 63) -> str:
-    """
-    Normalize text for use as SQL table and column names.
-    """
-    if pd.isna(val) or val is None:
-        return ""
-
-    val = str(val)
-
-    # Replace special characters
-    special_mapping = str.maketrans({
-        "&": "_en_",
-        "€": "_euro_",
-        "+": "_plus_",
-        "%": "_procent_",
-        "#": "_nr_",
-        "§": "_paragraaf_",
-        "$": "_dollar_",
-        "=": "_is_",
-        "°": "_graden_",
-    })
-    val = val.translate(special_mapping)
-
-    # Unicode -> ASCII
-    val = unicodedata.normalize("NFKD", val)
-    val = val.encode("ascii", "ignore").decode("ascii")
-
-    # Lowercase
-    val = val.lower()
-
-    # Replace invalid characters
-    val = re.sub(r"[^a-z0-9_]", "_", val)
-
-    # Collapse underscores
-    val = re.sub(r"_+", "_", val)
-
-    # Strip leading/trailing underscores
-    val = val.strip("_")
-
-    if not val:
-        return ""
-
-    # Prevent leading digit
-    if val[0].isdigit():
-        val = f"no_num_{val}"
-
-    # Trim to PostgreSQL identifier length
-    return val[:max_length]

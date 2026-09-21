@@ -14,7 +14,8 @@ logger = logging.getLogger(__name__)
 
 def extract_element_tables(
     client: RelaticsClient,
-    workspace_elements: dict[str, list[str]],
+    workspace_id: str,
+    element_ids: list[str],
     operation: str,
     parallel: bool = False,
     max_workers: int | None = None,
@@ -23,24 +24,26 @@ def extract_element_tables(
     """
     Extracts and transforms Relatics elements into normalized tables.
 
-    For each configured workspace and element combination, retrieves the
-    corresponding Relatics XML payload, validates the extracted schema,
+    For the specified workspace and element IDs, retrieves the
+    corresponding Relatics XML payloads, validates the extracted schema,
     normalizes the resulting tables, and applies business transformations.
 
     Processing can be executed sequentially or in parallel.
 
     Args:
         client: Configured Relatics API client.
-        workspace_elements: Mapping of workspace IDs to lists of element IDs
-            that should be extracted.
+        workspace_id: Workspace ID containing the elements that should
+            be extracted.
+        element_ids: Element IDs that should be extracted from the
+            workspace.
         operation: Relatics operation name used to retrieve the
             element data.
         parallel: Whether element extraction should be executed in
             parallel.
         max_workers: Maximum number of worker threads used when
-            run_parallel is True. If None, the ThreadPoolExecutor
+            parallel is True. If None, the ThreadPoolExecutor
             default is used.
-        inline_relations: Relation names of Relations to R2 Elements
+        inline_relations: Relation names of relations to R2 elements
             whose values should be materialized directly in the
             resulting element tables (must be to-one relations).
 
@@ -51,15 +54,10 @@ def extract_element_tables(
         Exception: Any exception raised during retrieval, validation,
             normalization, or transformation of element data.
     """
-    jobs = [
-        (workspace_id, element_id)
-        for workspace_id, element_ids in workspace_elements.items()
-        for element_id in element_ids
-    ]
-
     logger.info(
-        "Starting extraction for %s elements (parallel=%s)",
-        len(jobs),
+        "Starting extraction for %s elements in workspace %s (parallel=%s)",
+        len(element_ids),
+        workspace_id,
         parallel,
     )
 
@@ -75,15 +73,15 @@ def extract_element_tables(
                     workspace_id=workspace_id,
                     operation=operation,
                     inline_relations=inline_relations,
-                ): (workspace_id, element_id)
-                for workspace_id, element_id in jobs
+                ): element_id
+                for element_id in element_ids
             }
 
             for future in as_completed(future_map):
-                workspace_id, element_id = future_map[future]
+                element_id = future_map[future]
 
                 try:
-                    _merge_tables(tables, future.result())
+                    _add_tables(tables, future.result())
                 except Exception:
                     logger.exception(
                         "Failed processing workspace_id=%s element_id=%s",
@@ -92,9 +90,9 @@ def extract_element_tables(
                     )
                     raise
     else:
-        for workspace_id, element_id in jobs:
+        for element_id in element_ids:
             try:
-                _merge_tables(
+                _add_tables(
                     tables,
                     _process_element(
                         element_id=element_id,
@@ -147,20 +145,20 @@ def _process_element(
     )
 
     for table in transformed_tables.values():
-        table["workspace_id"] = workspace_id
+        table["workspace_guid"] = workspace_id
 
     return transformed_tables
 
 
-def _merge_tables(
+def _add_tables(
     tables: dict[str, pd.DataFrame],
     element_tables: dict[str, pd.DataFrame],
 ) -> None:
+    """Adds extracted tables and fails on duplicate table names."""
     for table_name, df in element_tables.items():
         if table_name in tables:
-            tables[table_name] = pd.concat(
-                [tables[table_name], df],
-                ignore_index=True,
+            raise RuntimeError(
+                f"Duplicate table '{table_name}' produced during extraction."
             )
-        else:
-            tables[table_name] = df
+
+        tables[table_name] = df
