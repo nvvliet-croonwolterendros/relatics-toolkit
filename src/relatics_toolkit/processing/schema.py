@@ -60,8 +60,5 @@ SCHEMA = {
             "R2InstanceID": {"not_null": True},
             "R2Instance": {"not_null": True},
         },
-        "unique": [
-            ["Relation", "R2Element"],
-        ],
     },
 }
