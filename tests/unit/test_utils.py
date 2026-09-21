@@ -5,12 +5,13 @@ from relatics_toolkit.utils.utils import normalize_value
 
 @pytest.mark.parametrize("val", [None, float("nan"), pd.NaT, pd.NA])
 def test_na_like_inputs_return_empty_string(val):
-    assert normalize_value(val) == ""
+    assert normalize_value(val) == None
 
 
 @pytest.mark.parametrize("val", ["", "!!!", "   ", "🎉"])
 def test_values_that_normalize_to_nothing_return_empty_string(val):
-    assert normalize_value(val) == ""
+        with pytest.raises(RuntimeError, match="got normalized to empty string"):
+            normalize_value(val)
 
 @pytest.mark.parametrize(
     ("val", "expected"),
@@ -110,7 +111,7 @@ def testnormalize_value_raise_when_empty_string():
 
 
 def testnormalize_value_raise_when_normalized_to_empty():
-    """Return None when None is passed"""
+    """Raises when val is normalized to empty string"""
     val = "!"
 
     with pytest.raises(RuntimeError, match="got normalized to empty string"):
