@@ -217,6 +217,26 @@ def _create_to_one_relations_table(
         cardinality="one",
     )
 
+    all_to_one_relation_instances_df = relation_instances_df[
+        relation_instances_df[RELATIONID_COL].isin(
+            all_to_one_relations_df[RELATIONID_COL]
+        )
+    ].copy()
+
+    duplicate_mask = all_to_one_relation_instances_df.duplicated(
+        subset=[R1INSTANCEID_COL, R2ELEMENT_COL], keep=False
+    )
+
+    if duplicate_mask.any():
+        duplicates = all_to_one_relation_instances_df.loc[
+            duplicate_mask,
+            [R1INSTANCEID_COL, R2ELEMENT_COL, R2INSTANCEID_COL],
+        ]
+        raise RuntimeError(
+            f"Duplicate to-one relations detected for the following "
+            f"({R1INSTANCEID_COL}, {R2ELEMENT_COL}) combinations:\n{duplicates}"
+        )
+
     to_one_relations_df = all_to_one_relations_df[
         ~all_to_one_relations_df[RELATION_COL].isin(inline_relations)
     ].copy()

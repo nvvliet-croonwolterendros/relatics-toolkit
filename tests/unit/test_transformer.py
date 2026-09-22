@@ -1,7 +1,10 @@
 import pandas as pd
 import pytest
 
-from relatics_toolkit.processing.transformer import _prepare_relation_targets
+from relatics_toolkit.processing.transformer import (
+    _create_to_one_relations_table,
+    _prepare_relation_targets,
+)
 
 
 def test_prepare_relation_targets_disambiguates_self_ref():
@@ -218,3 +221,139 @@ def test_prepare_relation_targets_raises_on_duplicate_children():
 
     with pytest.raises(RuntimeError):
         _prepare_relation_targets(relations_df, relation_instances_df)
+
+
+def test_create_to_one_relations_table_raises_on_duplicate_relations():
+    """Raises when a to-one relation has multiple targets for the same element
+    instance."""
+
+    relations_df = pd.DataFrame(
+        {
+            "RelationID": [1],
+            "Cardinality": ["0:1"],
+            "Relation": ["borrows"],
+        }
+    )
+
+    relation_instances_df = pd.DataFrame(
+        {
+            "RelationID": [1, 1],
+            "R1InstanceID": [11, 11],
+            "R2Element": ["hardware", "hardware"],
+            "R2InstanceID": [21, 22],
+        }
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Duplicate to-one relations detected",
+    ):
+        _create_to_one_relations_table(
+            relations_df,
+            relation_instances_df,
+        )
+
+
+def test_create_to_one_relations_table_raises_on_duplicate_inline_relations():
+    """Raises when an inline to-one relation contains duplicate targets."""
+
+    relations_df = pd.DataFrame(
+        {
+            "RelationID": [1],
+            "Cardinality": ["0:1"],
+            "Relation": ["manager"],
+        }
+    )
+
+    relation_instances_df = pd.DataFrame(
+        {
+            "RelationID": [1, 1],
+            "R1InstanceID": [11, 11],
+            "R2Element": ["employee", "employee"],
+            "R2InstanceID": [21, 22],
+            "R2Instance": ["Alice", "Bob"],
+        }
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Duplicate to-one relations detected",
+    ):
+        _create_to_one_relations_table(
+            relations_df,
+            relation_instances_df,
+            inline_relations=["manager"],
+        )
+
+
+def test_create_to_one_relations_table():
+    """Creates a table containing R2 instance ids for to-one relations."""
+
+    relations_df = pd.DataFrame(
+        {
+            "RelationID": [1],
+            "Cardinality": ["0:1"],
+            "Relation": ["borrows"],
+            "R2Element": ["hardware"],
+        }
+    )
+
+    relation_instances_df = pd.DataFrame(
+        {
+            "RelationID": [1],
+            "R1InstanceID": [11],
+            "R2Element": ["hardware"],
+            "R2InstanceID": [21],
+        }
+    )
+
+    expected = pd.DataFrame(
+        {"hardware_guid": [21]},
+        index=pd.Index([11], name="R1InstanceID"),
+    )
+
+    result = _create_to_one_relations_table(
+        relations_df,
+        relation_instances_df,
+    )
+
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_create_to_one_relations_table_with_inline_relations():
+    """Creates a table containing both inline values and relation ids."""
+
+    relations_df = pd.DataFrame(
+        {
+            "RelationID": [1, 2],
+            "Cardinality": ["0:1", "0:1"],
+            "Relation": ["manager", "borrows"],
+            "R2Element": ["employee", "hardware"],
+        }
+    )
+
+    relation_instances_df = pd.DataFrame(
+        {
+            "RelationID": [1, 2],
+            "R1InstanceID": [11, 11],
+            "R2Element": ["employee", "hardware"],
+            "R2Instance": ["Alice", None],
+            "R2InstanceID": [100, 21],
+        }
+    )
+
+    expected = pd.DataFrame(
+        {
+            "employee": ["Alice"],
+            "hardware_guid": [21],
+        },
+        index=pd.Index([11], name="R1InstanceID"),
+    )
+
+    result = _create_to_one_relations_table(
+        relations_df,
+        relation_instances_df,
+        inline_relations=["manager"],
+    )
+
+    pd.testing.assert_frame_equal(result, expected)
