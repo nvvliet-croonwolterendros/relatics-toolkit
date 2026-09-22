@@ -7,54 +7,37 @@ Welcome to the Relatics Toolkit documentation. This package provides a comprehen
 The Relatics Toolkit is designed to simplify interactions with the Relatics DataExchange API, offering:
 
 - **Authentication**: OAuth 2.0 token-based authentication support
-- **Data Extraction**: Flexible extraction methods for various data types
-- **XML Processing**: Efficient parsing of complex nested XML structures
-- **ETL Pipeline**: Comprehensive end-to-end data transformation and loading capabilities
+- **Report Extraction**: Extraction of Relatics reports exposed in webservices
+- **XML Processing**: Parsing of complex nested XML structures
+- **Element Extraction**: Extraction of Relatics elements into normalized relational tables
 
 ## Key Features
 
-### Data Extraction Methods
-
-The extractor supports two main use cases:
-
-1. **Single Report Part Extraction**
-2. **Complete ETL Pipeline**
-
 #### Single Report Part Extraction
 
-For extracting specific report parts, you can use the `parse_xml` function along with the RelaticsClient to retrieve and parse XML data.
+For extracting specific report parts, you can use the `RelaticsClient` class along with the `parse_xml` function to retrieve and parse XML data exposed in a Relatics webservice.
 
-```python
-from relatics_toolkit import RelaticsClient, parse_xml
+#### Element Extraction
 
-# Retrieve XML from relatics webservice
-client = RelaticsClient(client_id, client_secret, environment)
-result = client.get_request(workspace_id, operation)
+To extract the all data related to a selection of Elements, use the `extract_element_tables` function:
 
-# Parse resulting XML
-parsed_df = parse_xml(result, "ReportPart")
-```
-
-#### Complete ETL Pipeline
-
-For full data extraction and transformation, the connector provides an ETL pipeline that:
-
-- Retrieves elements with their `ConfigurationOfRef`
-- Extracts element information including Name, Description, RichText, and GUID
-- Handles relationships with different cardinalities (1:1, 1:n)
-- Creates appropriate link tables for 1:n relationships
-- Combines all data into a structured dictionary format
+- Retrieves elements using their `ElementID`
+- Extracts element information including `Name`, `Description`, `RichText`, and `GUID`
+- Extracts all user defined properties of the Element
+- Created reference columns for all to-one relations of the Element
+- Creates appropriate link tables for to-many relationships of the Element
+- Combines all data into a structured dictionary format with table names as keys and pandas DataFrames as values
 
 ## Core Components
 
 ### RelaticsClient
 The `RelaticsClient` class handles authentication and API requests to the Relatics DataExchange API.
 
-### extract_element_tables
-The `extract_element_tables` function orchestrates the complete extraction, parsing, schema validation, and transformation pipeline for Relatics data into database-ready pandas DataFrames.
-
 ### parse_xml
 The `parse_xml` function parses deeply nested XML structures returned by Relatics into structured pandas DataFrames.
+
+### extract_element_tables
+The `extract_element_tables` function orchestrates the complete extraction, parsing, schema validation, and transformation for Relatics Element data into database-ready pandas DataFrames.
 
 ## Getting Started
 

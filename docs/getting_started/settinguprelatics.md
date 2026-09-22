@@ -1,35 +1,23 @@
-# Setting up the right Relatics report and webservice.
+# Setting up Relatics Reports and Webservices
 ## Introduction
 
-In order to make the ETL process work a very specific relatics report and webservice needs to be setup. This webservice will be used by the `relatics_toolkit.extract_element_tables` in order to produce the full extraction.
+In order to extract all Element data a very specific relatics report and webservice needs to be setup. This webservice will be used by the `relatics_toolkit.extract_element_tables` function in order to produce the full extraction.
 
-The ETL pipeline will do the following:
+The function will do the following:
 
-- Get a list of elements with their `ConfigurationOfRef` to be extracted and start a loop.
-- Produce a table with the Name, Description, RichText and GUID of the Element and append all their relations with a **:1** cardinality.
-- Produce a link table for each relation the element has to other elements with **:n** cardinality. The link table will only have the *ElementGUID*, *R2RelationElementGUID* and *workspaceid*
-If a **requirement** element has a :n relation with the **Issue** element. The link table will be called **raw_relatics__requirement_issue** and will contain the columns: *requirement_guid*, *issue_guid* and *workspaceid*
+- Loop over the provided ElementID list to be extracted.
+- Produce a table with the Name, Description, RichText and GUID of the Element, append all properties, and append all relations with a to-one cardinality.
+- Produce a link table for each relation the element has to other elements with to-many cardinality. 
 - Combine all these tables into a dictionary and return it.
 
 !!! danger "Warning!"
     Don't skip any steps in this setup. Copy names and query patterns exactly. The `extract_element_tables` method has no flexibility in report part naming and the naming of the query values should therefore match this guide.
-    If multiple workspaces are to be extracted in the same run ensure that the names of all the reports mentioned below are the same.
 
 !!! tip
     Ensure that after creating a report you enter the *output extension* to be **xml**
 
 ## Setting up the Report structure
 The report in relatics needs to be the following structure:
-
-![Report structure](assets/report_structure.png)
-
-This is the only part where you can change a name. The report part which contains all elements to export is defaulted to `Elements`. If you so desire you can modify this name and pass it as an parameter in the `extract_element_tables` method.
-Next we will go more in depth of the individual report parts needed for the connector.
-
-### Data extraction report
-With the ConfigurationOfRef list obtained by the process above we can start looping over their ConfigurationOfRefs. The report that is shown below will get all the requried data for one Relatics element. Then, using this information, the extractor will produce the element tables (with the information for each element. e.g. name and discription. And all relations with a :1 cardinality) and all the link tables (the relation to elements with a :n cardinality).
-
-The report structure will look like this:
 
 ![Report structure](assets/report_structure.png)
 
@@ -89,7 +77,7 @@ This table gives you the possible relations an element can have, akin to the *Pr
 
 *R1Element*:
 
-Modify the Constraint Editor:
+Modify Common fields and the Constraint Editor:
 
 ![Relation node R1Element](assets/relations_node_r1element.png)
 
@@ -115,9 +103,6 @@ Modify the Common fields, Advanced fields and Join Editor.
 #### RelationInstances
 This table gives you the actual relations an element has.
 
-!!! bug
-    Known bug: When a Relatics Library has relations to another library and a child element has the same relation to this library. The Extractor cannot pick up the right relation and skips the child element altogether.
-
 ![Relation Instances query](assets/relationinstances_query.png)
 
 *R1Instance*:
@@ -125,15 +110,12 @@ This table gives you the actual relations an element has.
 Modify the Common fields, Constraint editor and Advandec fields section:
 ![Relation Instances R1Instance](assets/relationinstances_node_r1instance.png)
 
-*RelationInstance*:
-
-Modify the Join editor and Advanced fields.
-![Relation Instances Relationinstance](assets/relationinstances_node_relationinstance.png)
-
 *Relation*:
 
-Modify the Join Editor and Advanced fields.
-![Relation Instances Relation](assets/relationinstances_node_relationinstance.png)
+Modify the Common fields, Join Editor and Advanced fields.
+![Relation Instances Relation](assets/relationinstances_node_relation.png)
+
+![Relation Instances Relation](assets/relationinstances_node_relation_fields.png)
 
 *R2Instance*:
 
