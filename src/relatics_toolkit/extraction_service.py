@@ -1,5 +1,6 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Literal
 
 import pandas as pd
 
@@ -20,6 +21,7 @@ def extract_element_tables(
     parallel: bool = False,
     max_workers: int | None = None,
     inline_relations: list[str] | None = None,
+    errors: Literal['raise', 'ignore'] = 'raise',
 ) -> dict[str, pd.DataFrame]:
     """
     Extracts and transforms Relatics elements into normalized tables.
@@ -46,6 +48,11 @@ def extract_element_tables(
         inline_relations: Relation names of relations to R2 elements
             whose values should be materialized directly in the
             resulting element tables (must be to-one relations).
+        errors: either set to 'raise' or 'ignore' changes the way
+            the function handles errors in the extraction process.
+            'raise' fails the entire extraction if a single element
+            has errors. 'ignore' prints the exception to the console
+            including element_id of the failed element and continues.
 
     Returns:
         Dictionary mapping table names to transformed pandas DataFrames.
@@ -54,6 +61,12 @@ def extract_element_tables(
         Exception: Any exception raised during retrieval, validation,
             normalization, or transformation of element data.
     """
+    if type(errors) != str:
+        raise TypeError(f"Argument errors should be of type: str but got {type(errors)}")
+
+    if errors not in ['raise', 'ignore']:
+        raise ValueError(f"Wrong string received for argument: errors. Expected 'raise' or 'ignore' but got {errors}")
+
     logger.info(
         "Starting extraction for %s elements in workspace %s (parallel=%s)",
         len(element_ids),
@@ -83,12 +96,15 @@ def extract_element_tables(
                 try:
                     _add_tables(tables, future.result())
                 except Exception:
-                    logger.exception(
-                        "Failed processing workspace_id=%s element_id=%s",
-                        workspace_id,
-                        element_id,
-                    )
-                    raise
+                    if errors == 'raise':
+                        logger.error(
+                            "Failed processing workspace_id=%s element_id=%s",
+                            workspace_id,
+                            element_id,
+                        )
+                        raise
+                    elif errors == 'ignore':
+                        logger.exception(f"Failed processing workspace_id={workspace_id} element_id={element_id}. Skipping...")
     else:
         for element_id in element_ids:
             try:
@@ -103,12 +119,15 @@ def extract_element_tables(
                     ),
                 )
             except Exception:
-                logger.exception(
-                    "Failed processing workspace_id=%s element_id=%s",
-                    workspace_id,
-                    element_id,
-                )
-                raise
+                if errors == 'raise':
+                    logger.error(
+                        "Failed processing workspace_id=%s element_id=%s",
+                        workspace_id,
+                        element_id,
+                    )
+                    raise
+                elif errors == 'ignore':
+                    logger.exception(f"Failed processing workspace_id={workspace_id} element_id={element_id}. Skipping...")
 
     logger.info(
         "Extraction completed successfully. Generated %s tables.",
