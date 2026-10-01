@@ -162,6 +162,9 @@ def _prepare_relation_targets(
     for df in (relations_df, relation_instances_df):
         mask = df[RELATIONID_COL].isin(rename_ids)
 
+        if not mask.any():
+            continue
+
         df.loc[mask, R2ELEMENT_COL] = (
             df.loc[mask, RELATION_COL] + "_" + df.loc[mask, R2ELEMENT_COL]
         )
