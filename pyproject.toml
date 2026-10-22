@@ -1,6 +1,6 @@
 [project]
 name = "relatics-toolkit"
-version = "1.2.0"
+version = "1.2.1"
 description = "A package that enables fast and easy ETL processing of a Relatics workspace."
 readme = "README.md"
 requires-python = ">=3.14"
@@ -38,5 +38,5 @@ publish-url = "https://test.pypi.org/legacy/"
 explicit = true
 
 [build-system]
-requires = ["uv_build>=0.12.5,<0.13"]
+requires = ["uv_build>=0.12.5,<0.14"]
 build-backend = "uv_build"
